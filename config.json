@@ -1,0 +1,100 @@
+{
+    "kafka_config": {
+        "kafka.bootstrap.servers": "",
+        "kafka.security.protocol": "SASL_SSL",
+        "kafka.sasl.mechanism": "PLAIN",
+        "kafka.sasl.jaas.config": ""
+    },
+    "datasets": [
+        {
+            "datasource": "retail-org",
+            "dataset": "sales_orders",
+            "source": {
+                "format": "cloudFiles",
+                "options": {
+                    "cloudFiles.format": "json",
+                    "cloudFiles.inferColumnTypes": "true",
+                    "cloudFiles.schemaEvolutionMode": "addNewColumns",
+                    "cloudFiles.schemaHints": "clicked_items string, ordered_products.element.promotion_info string, fulfillment_days string"
+                },
+                "path": "abfss://landing@.dfs.core.windows.net/retail-org/sales_orders"
+            },
+            "sink": {
+                "layer": "bronze"
+            }
+        },
+        {
+            "datasource": "pizzerie",
+            "dataset": "orders",
+            "source": {
+                "format": "kafka",
+                "options": {
+                    "subscribe": "orders",
+                    "startingOffsets": "earliest"
+                },
+                "key_format": "string",
+                "value_format": "json",
+                "json_schema": "id long, shop string, name string, phoneNumber string, address string,pizzas array<struct<pizzaName:string, additionalToppings:array<string>>>"
+            },
+            "sink": {
+                "layer": "bronze",
+                "partition_columns": [
+                    "key",
+                    "partition"
+                ],
+                "trigger": {
+                    "availableNow": true
+                }
+            }
+        },
+        {
+            "datasource": "pizzerie",
+            "dataset": "orders.v2",
+            "source": {
+                "format": "kafka",
+                "options": {
+                    "subscribe": "orders.v2",
+                    "startingOffsets": "earliest"
+                },
+                "key_format": "string",
+                "value_format": "avro"
+            },
+            "sink": {
+                "layer": "bronze",
+                "trigger": {
+                    "processingTime": "10 seconds"
+                }
+            }
+        },
+        {
+            "datasource": "tensorflow",
+            "dataset": "flowers",
+            "source": {
+                "format": "cloudFiles",
+                "options": {
+                    "cloudFiles.format": "binaryFile",
+                    "cloudFiles.inferColumnTypes": "true",
+                    "pathGlobFilter": "*.jpg",
+                    "recursiveFileLookup": "true"
+                },
+                "path": "abfss://landing@.dfs.core.windows.net/tensorflow/flowers"
+            },
+            "sink": {
+                "layer": "bronze"
+            }
+        }
+    ],
+    "layers": {
+        "bronze": {
+            "format": "delta",
+            "options": {
+                "mergeSchema": "true"
+            },
+            "path": "abfss://bronze@.dfs.core.windows.net"
+        }
+    },
+    "schema_registry_config": {
+        "url": "",
+        "basic.auth.user.info": ""
+    }
+}
